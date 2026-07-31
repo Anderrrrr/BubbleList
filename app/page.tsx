@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { hasSupabaseConfig, supabase, type TodoRow } from "./supabase";
 
 type Todo = {
   id: string;
@@ -46,11 +47,15 @@ const C = {
   todoList: zh("&#24453;&#36774;&#28165;&#21934;"),
   doneHint: zh("&#23436;&#25104;&#24460;&#26371;&#24478;&#22320;&#22294;&#31227;&#21040;&#24050;&#23436;&#25104;&#21312;&#12290;"),
   empty: zh("&#27794;&#26377;&#24453;&#36774;&#20107;&#38917;&#65292;&#26032;&#22686;&#19968;&#20214;&#38283;&#22987;&#25490;&#20301;&#32622;&#12290;"),
+  syncing: zh("&#27491;&#22312;&#21516;&#27493;&#21040;&#38642;&#31471;&#12290;"),
+  cloudReady: zh("&#24050;&#36899;&#19978; Supabase &#38642;&#31471;&#36039;&#26009;&#24235;&#12290;"),
+  localMode: zh("&#26410;&#35373;&#23450;&#38642;&#31471;&#65292;&#30446;&#21069;&#20351;&#29992;&#26412;&#27231;&#20445;&#23384;&#12290;"),
+  syncIssue: zh("&#38642;&#31471;&#21516;&#27493;&#36935;&#21040;&#21839;&#38988;&#65292;&#24050;&#20808;&#20445;&#30041;&#22312;&#30059;&#38754;&#19978;&#12290;"),
 };
 
 const starterTodos: Todo[] = [
   {
-    id: "launch-plan",
+    id: "5b9733c4-3e13-4dd3-bc7c-b0dc7d4ce3a0",
     title: zh("&#25972;&#29702;&#29986;&#21697;&#31532;&#19968;&#29256;&#31684;&#22285;"),
     details: "MVP: drag bubbles, ranked list, local save, later Supabase sync.",
     importance: 82,
@@ -58,7 +63,7 @@ const starterTodos: Todo[] = [
     done: false,
   },
   {
-    id: "doctor",
+    id: "ed1e20bc-6315-498b-b05c-a9e6bf1ab3a8",
     title: zh("&#38928;&#32004;&#20581;&#24247;&#27298;&#26597;"),
     details: "",
     importance: 66,
@@ -66,7 +71,7 @@ const starterTodos: Todo[] = [
     done: false,
   },
   {
-    id: "invoice",
+    id: "471cd59c-cd0d-48dc-bfd2-36d014bbcc0a",
     title: zh("&#34389;&#29702;&#26412;&#26376;&#30332;&#31080;"),
     details: "",
     importance: 48,
@@ -74,7 +79,7 @@ const starterTodos: Todo[] = [
     done: false,
   },
   {
-    id: "reading",
+    id: "0c865482-1f22-48d4-b94d-fcda7e8b9cb7",
     title: zh("&#38321;&#35712; Supabase &#35373;&#23450;&#31558;&#35352;"),
     details: "",
     importance: 36,
@@ -99,6 +104,28 @@ function normalizeTodo(todo: Partial<Todo>): Todo | null {
   };
 }
 
+function todoFromRow(row: TodoRow): Todo {
+  return {
+    id: row.id,
+    title: row.title,
+    details: row.details ?? "",
+    importance: clamp(row.importance),
+    urgency: clamp(row.urgency),
+    done: row.done,
+  };
+}
+
+function todoToRow(todo: Todo): TodoRow {
+  return {
+    id: todo.id,
+    title: todo.title,
+    details: todo.details,
+    importance: todo.importance,
+    urgency: todo.urgency,
+    done: todo.done,
+  };
+}
+
 export default function Home() {
   const boardRef = useRef<HTMLDivElement>(null);
   const [todos, setTodos] = useState<Todo[]>(starterTodos);
@@ -106,20 +133,50 @@ export default function Home() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(starterTodos[0]?.id ?? null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [status, setStatus] = useState(hasSupabaseConfig ? C.syncing : C.localMode);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("bubble-todos");
-    if (!saved) return;
+    let mounted = true;
 
-    try {
-      const parsed = JSON.parse(saved) as Partial<Todo>[];
-      if (Array.isArray(parsed)) {
-        const normalized = parsed.map(normalizeTodo).filter((todo): todo is Todo => Boolean(todo));
-        if (normalized.length > 0) setTodos(normalized);
+    async function loadTodos() {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from("todos")
+          .select("id,title,details,importance,urgency,done,created_at")
+          .order("created_at", { ascending: true });
+
+        if (!mounted) return;
+
+        if (!error && data) {
+          const remoteTodos = data.map(todoFromRow);
+          setTodos(remoteTodos);
+          setExpandedId(remoteTodos.find((todo) => !todo.done)?.id ?? null);
+          setStatus(C.cloudReady);
+          return;
+        }
+
+        setStatus(C.syncIssue);
       }
-    } catch {
-      window.localStorage.removeItem("bubble-todos");
+
+      const saved = window.localStorage.getItem("bubble-todos");
+      if (!saved) return;
+
+      try {
+        const parsed = JSON.parse(saved) as Partial<Todo>[];
+        if (Array.isArray(parsed)) {
+          const normalized = parsed.map(normalizeTodo).filter((todo): todo is Todo => Boolean(todo));
+          if (normalized.length > 0) setTodos(normalized);
+        }
+      } catch {
+        window.localStorage.removeItem("bubble-todos");
+      }
     }
+
+    loadTodos();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -135,8 +192,25 @@ export default function Home() {
 
   const activeTodo = todos.find((todo) => todo.id === draggingId);
 
-  function updateTodo(id: string, patch: Partial<Todo>) {
-    setTodos((current) => current.map((todo) => (todo.id === id ? { ...todo, ...patch } : todo)));
+  async function persistTodo(todo: Todo) {
+    if (!supabase) return;
+
+    const { error } = await supabase.from("todos").upsert(todoToRow(todo));
+    setStatus(error ? C.syncIssue : C.cloudReady);
+  }
+
+  function updateTodo(id: string, patch: Partial<Todo>, options: { persist?: boolean } = {}) {
+    let nextTodo: Todo | null = null;
+
+    setTodos((current) =>
+      current.map((todo) => {
+        if (todo.id !== id) return todo;
+        nextTodo = { ...todo, ...patch };
+        return nextTodo;
+      }),
+    );
+
+    if (options.persist !== false && nextTodo) void persistTodo(nextTodo);
   }
 
   function placeTodo(clientX: number, clientY: number, id: string) {
@@ -146,7 +220,16 @@ export default function Home() {
     const rect = board.getBoundingClientRect();
     const importance = clamp(((clientX - rect.left) / rect.width) * 100);
     const urgency = clamp(100 - ((clientY - rect.top) / rect.height) * 100);
-    updateTodo(id, { importance, urgency });
+    updateTodo(id, { importance, urgency }, { persist: false });
+  }
+
+  function finishDrag() {
+    if (draggingId) {
+      const todo = todos.find((item) => item.id === draggingId);
+      if (todo) void persistTodo(todo);
+    }
+
+    setDraggingId(null);
   }
 
   function addTodo() {
@@ -163,12 +246,19 @@ export default function Home() {
     };
 
     setTodos((current) => [...current, newTodo]);
+    void persistTodo(newTodo);
     setExpandedId(newTodo.id);
     setTitle("");
   }
 
   function resetDemo() {
     setTodos(starterTodos);
+    if (supabase) {
+      void supabase.from("todos").delete().neq("id", "00000000-0000-0000-0000-000000000000").then(async () => {
+        const { error } = await supabase.from("todos").insert(starterTodos.map(todoToRow));
+        setStatus(error ? C.syncIssue : C.cloudReady);
+      });
+    }
     setExpandedId(starterTodos[0]?.id ?? null);
     setShowCompleted(false);
   }
@@ -231,8 +321,8 @@ export default function Home() {
                   if (!draggingId) return;
                   placeTodo(event.clientX, event.clientY, draggingId);
                 }}
-                onPointerUp={() => setDraggingId(null)}
-                onPointerCancel={() => setDraggingId(null)}
+                onPointerUp={finishDrag}
+                onPointerCancel={finishDrag}
               >
                 <div className="axis-label top-3 left-3">{C.urgentLessImportant}</div>
                 <div className="axis-label top-3 right-3">{C.doFirst}</div>
@@ -358,7 +448,7 @@ export default function Home() {
             <div className="border-t border-[#d9d3c8] px-4 py-3 text-sm text-[#59616b]">
               {activeTodo
                 ? `${C.adjusting}: ${activeTodo.title}, ${C.importance} ${activeTodo.importance}, ${C.urgency} ${activeTodo.urgency}`
-                : C.idle}
+                : `${C.idle} ${status}`}
             </div>
           </aside>
         </div>
