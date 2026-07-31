@@ -253,9 +253,10 @@ export default function Home() {
 
   function resetDemo() {
     setTodos(starterTodos);
-    if (supabase) {
-      void supabase.from("todos").delete().neq("id", "00000000-0000-0000-0000-000000000000").then(async () => {
-        const { error } = await supabase.from("todos").insert(starterTodos.map(todoToRow));
+    const client = supabase;
+    if (client) {
+      void client.from("todos").delete().neq("id", "00000000-0000-0000-0000-000000000000").then(async () => {
+        const { error } = await client.from("todos").insert(starterTodos.map(todoToRow));
         setStatus(error ? C.syncIssue : C.cloudReady);
       });
     }
