@@ -1,0 +1,325 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f3eb;
+  --foreground: #1b1f24;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+textarea {
+  border-radius: 8px;
+}
+
+.priority-board {
+  background-image:
+    linear-gradient(to right, rgba(27, 31, 36, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(27, 31, 36, 0.08) 1px, transparent 1px),
+    linear-gradient(to right, transparent calc(50% - 1px), rgba(15, 118, 110, 0.4) calc(50% - 1px), rgba(15, 118, 110, 0.4) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom, transparent calc(50% - 1px), rgba(15, 118, 110, 0.4) calc(50% - 1px), rgba(15, 118, 110, 0.4) calc(50% + 1px), transparent calc(50% + 1px));
+  background-size: 10% 10%, 10% 10%, 100% 100%, 100% 100%;
+}
+
+.axis-label {
+  position: absolute;
+  z-index: 1;
+  max-width: 9rem;
+  border: 1px solid #d9d3c8;
+  background: rgba(255, 252, 245, 0.88);
+  padding: 0.35rem 0.55rem;
+  color: #59616b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.todo-bubble {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  min-height: 4.35rem;
+  width: clamp(8.5rem, 19vw, 12.5rem);
+  max-width: calc(100% - 1.5rem);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 2px solid rgba(27, 31, 36, 0.8);
+  background: #a7f3d0;
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  box-shadow: 0 12px 26px rgba(27, 31, 36, 0.13);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.todo-bubble:nth-of-type(2n) {
+  background: #fed7aa;
+}
+
+.todo-bubble:nth-of-type(3n) {
+  background: #bfdbfe;
+}
+
+.todo-bubble:nth-of-type(4n) {
+  background: #fde68a;
+}
+
+.todo-bubble span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #15171a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.todo-bubble small {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 0.15rem 0.45rem;
+  color: #30363d;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.todo-bubble.is-dragging {
+  cursor: grabbing;
+  border-color: #0f766e;
+  box-shadow: 0 18px 36px rgba(15, 118, 110, 0.28);
+}
+
+.todo-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  border-bottom: 1px solid #e3ddd2;
+  padding: 1rem;
+}
+
+.todo-row-main {
+  display: flex;
+  gap: 0.85rem;
+}
+
+.todo-row h3 {
+  overflow-wrap: anywhere;
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.todo-row strong {
+  border-radius: 999px;
+  background: #1b1f24;
+  padding: 0.25rem 0.55rem;
+  color: white;
+  font-size: 0.8rem;
+}
+
+.rank {
+  display: grid;
+  height: 2rem;
+  width: 2rem;
+  flex: 0 0 2rem;
+  place-items: center;
+  border: 1px solid #bdb6aa;
+  background: white;
+  color: #0f766e;
+  font-weight: 900;
+}
+
+.small-button {
+  border: 1px solid #bdb6aa;
+  background: white;
+  padding: 0.35rem 0.55rem;
+  color: #1b1f24;
+  font-size: 0.76rem;
+  font-weight: 800;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.small-button:hover {
+  border-color: #0f766e;
+  color: #0f766e;
+}
+
+.todo-details {
+  margin-left: 2.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  border-left: 3px solid #99f6e4;
+  padding-left: 0.9rem;
+}
+
+.todo-details label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #59616b;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.todo-details textarea {
+  min-height: 7rem;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #bdb6aa;
+  background: white;
+  padding: 0.75rem;
+  color: #1b1f24;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.45;
+  outline: none;
+}
+
+.todo-details textarea:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px #99f6e4;
+}
+
+.todo-details p,
+.empty-state {
+  color: #59616b;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.empty-state {
+  padding: 1rem;
+}
+
+.done-toggle {
+  display: flex !important;
+  width: fit-content;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.45rem !important;
+  color: #1b1f24 !important;
+  font-size: 0.82rem !important;
+  font-weight: 800 !important;
+}
+
+.completed-panel {
+  border-top: 1px solid #d9d3c8;
+  background: #f7f3eb;
+}
+
+.completed-toggle {
+  width: 100%;
+  border-radius: 0;
+  border: 0;
+  background: #e7f8f4;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  color: #0f766e;
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.completed-list {
+  display: flex;
+  max-height: 18rem;
+  flex-direction: column;
+  overflow: auto;
+  border-top: 1px solid #cfe5df;
+}
+
+.completed-list h3,
+.completed-list > p {
+  padding: 0.85rem 1rem 0;
+  color: #59616b;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.completed-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid #d9d3c8;
+  padding: 0.9rem 1rem;
+}
+
+.completed-item strong {
+  display: block;
+  color: #353b42;
+  font-size: 0.92rem;
+  text-decoration: line-through;
+}
+
+.completed-item p {
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+  color: #59616b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+  .priority-board {
+    min-height: 430px;
+  }
+
+  .axis-label {
+    max-width: 7.5rem;
+    font-size: 0.68rem;
+  }
+
+  .todo-bubble {
+    min-height: 3.8rem;
+    width: 8.5rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .todo-bubble span {
+    font-size: 0.84rem;
+  }
+
+  .todo-row-main {
+    gap: 0.65rem;
+  }
+
+  .todo-details {
+    margin-left: 0;
+  }
+
+  .completed-item {
+    flex-direction: column;
+  }
+}
